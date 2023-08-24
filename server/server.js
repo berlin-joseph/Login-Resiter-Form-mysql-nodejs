@@ -6,6 +6,9 @@ const path = require("path");
 const app = express();
 const dotenv = require("dotenv");
 const bodyParser = require("body-parser");
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
+const session = require("express-session");
 
 //
 dotenv.config({ path: path.join(__dirname, ".", "config", "config.env") });
@@ -13,8 +16,19 @@ dotenv.config({ path: path.join(__dirname, ".", "config", "config.env") });
 //
 app.use(express.json());
 app.use(cors());
-app.use(bodyParser.json());
+app.use(cookieParser());
+app.use(bodyParser.urlencoded({ extended: true }));
 
+//
+app.use(
+  session({
+    key: "id",
+    secret: "Learning",
+    resave: false,
+    saveUninitialized: false,
+    cookie: { expires: 60 * 60 * 24 },
+  })
+);
 //
 db;
 
@@ -92,9 +106,21 @@ app.post("/login", (req, res) => {
       } else {
         const user = results[0];
         const passwordMatch = await bcrypt.compare(password, user.password);
-
         if (passwordMatch) {
-          res.status(200).json({ message: "Login successful" });
+          // Create a JWT token
+          const token = jwt.sign({ userId: user.id }, "hi all", {
+            expiresIn: "1h",
+          });
+
+          // insert jwt_tokens
+          const sql = "UPDATE Employee_login SET jwt_tokens = ? WHERE id = ?";
+          db.query(sql, [token, user.id], (err) => {
+            if (err) {
+              res.status(500).json({ success: false, Error: err });
+            } else {
+              res.status(200).json({ message: "Login successful", token });
+            }
+          });
         } else {
           res.status(401).json({ message: "Invalid Password" });
         }
